@@ -1,10 +1,10 @@
 @startuml
 
-collections "Browser Pool" as b
 collections "Client Cluster" as c
 collections "Server Cluster" as s
 database Redis as rd
 database Database as db
+collections "Browser Pool" as b
 
 title 服务端初始化流程
 

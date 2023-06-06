@@ -2,16 +2,8 @@
 
 ## 技术选型
 
-### 客户端
-
-- Python
 - Selenium
 - DrissionPage
-
-### 服务端
-
-- Python
-- Java
 
 ## 调度设计
 
