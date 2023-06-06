@@ -1,0 +1,111 @@
+@startuml
+
+collections "Browser Pool" as b
+collections "Client Cluster" as c
+collections "Server Cluster" as s
+database Redis as rd
+database Database as db
+
+title 服务端初始化流程
+
+note across: 将所有需要执行任务的用户维护到缓存中
+
+autonumber "<b>[00] "
+
+activate s
+s -> db: 查询所有用户
+activate db
+db --> s: 返回数据
+deactivate db
+s -> rd: 缓存用户状态(putIfAbsent)
+activate rd
+rd --> s: 成功
+deactivate rd
+
+newpage 客户端初始化流程
+
+note across: 启动指定数量的浏览器，并连接至服务端
+
+autonumber "<b>[00] "
+
+deactivate s
+activate c
+c -> b: 启动 n 个 Headless 浏览器\n守护进程监听保证浏览器数量
+activate b
+b --> c: 启动完成
+deactivate b
+
+c -> s: 通过 TCP 或 Websocket 连接值服务端
+activate s
+s --> c: 连接成功
+deactivate s
+
+newpage 客户端请求任务流程
+
+note across: 定时上报客户端状态，并请求任务
+
+autonumber "<b>[00] "
+
+deactivate s
+
+loop 循环向服务器请求任务
+c ->> s: 请求任务，参数\n浏览器总数量、已登录浏览器的信息列表
+activate s
+s -> rd: 缓存登录状态
+activate rd
+rd --> s: 成功
+deactivate rd
+
+alt 请求任务流程
+    s -> s: 判断是否存在<b>已登录且空闲</b>的浏览器
+    activate s
+    s -> db: 从数据库中为每个用户查询 1 个任务
+    activate db
+    db --> s: 返回数据
+    deactivate db
+    deactivate s
+end
+
+alt 请求登录流程
+    s -> s: 判断是否存在<b>未登录且空闲</b>的浏览器
+    activate s
+    s -> rd: 从缓存中查询未登录用户
+    activate rd
+    rd --> s: 返回用户
+    deactivate rd
+    s -> rd: 通过设置用户状态为登录中\n(putIfAbsent或分布式锁)
+    activate rd
+    rd --> s: 返回结果
+    deactivate rd
+    alt #LightGreen 设置成功
+        s -> s: 结果中添加一条<b>登录</b>任务
+    end
+    alt #LightPink 设置失败
+        s -> s: 跳过(此时该用户可能在别的机器上登录中)
+    end
+    deactivate s
+end
+
+s --> c: 返回任务列表
+deactivate s
+
+c -> c: 遍历任务并找到对应的浏览器，\n设置状态为执行中
+c ->> b: 操作客户端(异步线程)
+activate b
+b -->> c: 返回结果
+deactivate b
+
+c ->> s: 返回任务处理结果
+activate s
+s -> db: 更新任务处理结果
+activate db
+db --> s: 返回结果
+deactivate db
+s -->> c:  返回结果
+deactivate s
+
+c -> c: 设置浏览器状态为空闲
+
+end
+
+@enduml
