@@ -15,7 +15,7 @@ app = Flask(__name__)
 @app.get("/<kw>")
 def index(kw):
     driver = new_driver()
-    res = exec(driver, kw)
+    res = icon(driver, kw)
     return res, 200
 
 
@@ -37,14 +37,14 @@ def new_driver():
     return driver
 
 
-def exec(driver, kw):
+def translate(driver, kw):
     res = None
 
-    driver.get('https://fanyi.baidu.com/#en/zh/')
-    driver.find_element(by=By.CSS_SELECTOR, value='#baidu_translate_input').send_keys(kw)
-    driver.find_element(by=By.CSS_SELECTOR, value='#baidu_translate_input').send_keys(Keys.ENTER)
+    driver.get('https://www.iconfont.cn/')
+    driver.find_element(by=By.CSS_SELECTOR, value='#J_search_input_index').send_keys(kw + Keys.ENTER)
 
-    time.sleep(1)
+    time.sleep(0.5)
+
     logs = driver.get_log('performance')
     for log in logs:
         data = json.loads(log["message"])
@@ -66,6 +66,27 @@ def exec(driver, kw):
                     # [{'dst': '金的', 'src': 'Golden'}]
             except Exception as e:
                 print(e)
+
+    driver.close()
+    return res
+
+
+def icon(driver, kw):
+    driver.get('https://www.iconfont.cn/')
+    time.sleep(0.5)
+    driver.find_element(by=By.CSS_SELECTOR, value='#J_search-box > div:nth-child(1)').click()
+    driver.find_element(by=By.CSS_SELECTOR, value='div[data-type=illustration]').click()
+    driver.find_element(by=By.CSS_SELECTOR, value='input#J_search_input_index').send_keys(kw + Keys.ENTER)
+
+    time.sleep(0.5)
+
+    images = driver.find_elements(by=By.CSS_SELECTOR, value='.block-icon-list>li>.icon-twrap>img')
+    names = driver.find_elements(by=By.CSS_SELECTOR, value='.block-icon-list>li>.icon-name')
+
+    res = [{
+        "src": images[i].get_property("src"),
+        "name": names[i].get_property("title"),
+    } for i in range(len(images))]
 
     driver.close()
     return res
