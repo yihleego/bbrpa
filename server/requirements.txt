@@ -1,0 +1,7 @@
+Flask==2.2.3
+waitress==2.1.2
+SQLAlchemy==2.0.9
+PyMySQL==1.0.3
+redis==4.5.5
+PyYAML==6.0
+
