@@ -6,6 +6,7 @@ COPY ./lib/chromedriver /usr/local/bin/
 COPY ./lib/linux_signing_key.pub /app/
 
 COPY ./*.py /app/
+COPY ./*.yml /app/
 COPY ./requirements.txt /app/requirements.txt
 
 RUN sed -i 's/ports.ubuntu.com/mirror.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list

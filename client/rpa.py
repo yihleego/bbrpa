@@ -1,3 +1,4 @@
+# -*- coding=utf-8
 import threading
 from abc import ABC
 
@@ -6,6 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
+import config
 from app import App
 
 
@@ -23,7 +25,7 @@ class Service(ABC):
 class RPA(Service):
     def __init__(self, event: threading.Event):
         self.event: threading.Event = event
-        self.app_manager = AppManager()
+        self.app_manager = AppManager(config.app.size)
         self.health_manager = HealthManager()
 
     def startup(self):

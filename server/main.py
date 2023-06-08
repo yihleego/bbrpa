@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import config
-from models import Task, TaskRecord, TaskRecordStatus
+from models import Task, TaskScript, TaskRecord, TaskRecordStatus
 
 app = Flask(__name__)
 engine = create_engine(config.database.url)
@@ -23,13 +23,13 @@ rd = redis.Redis(host=config.redis.host, port=config.redis.port, password=config
 def create_task_record():
     body = request.json
     task_id = body["task_id"]
-    data = body["data"]
+    params = body["params"]
 
     session = Session()
     try:
         r = TaskRecord()
         r.task_id = task_id
-        r.data = data
+        r.params = params
         r.status = TaskRecordStatus.CREATED
         r.created_time = datetime.datetime.now()
         session.add(r)
@@ -45,7 +45,7 @@ def create_task_record():
 def update_task_record():
     body = request.json
     id = body["id"]
-    success = body["success"]
+    success = body["success"]  # required
     result = body.get("result")  # nullable
     message = body.get("message")  # nullable
 
@@ -86,7 +86,8 @@ def get_executable_tasks():
             .filter(TaskRecord.deleted == 0) \
             .filter(TaskRecord.status == TaskRecordStatus.CREATED) \
             .order_by(TaskRecord.created_time.asc()) \
-            .limit(2).all()
+            .limit(2) \
+            .all()
         if len(records) == 0:
             return []
 
@@ -98,18 +99,47 @@ def get_executable_tasks():
 
         session.commit()
 
+        task_ids = [r.task_id for r in records]
         tasks = session.query(Task) \
-            .filter(Task.id.in_([r.task_id for r in records])) \
+            .filter(Task.id.in_(task_ids)) \
             .all()
 
-        task_map = {t.id: t.name for t in tasks}
+        # id -> task
+        task_map = {t.id: t for t in tasks}
 
         return [{
             "id": r.id,
+            "params": r.params,
             "task_id": r.task_id,
-            "task_name": task_map.get(r.task_id),
-            "data": r.data,
+            "task_name": task_map.get(r.task_id).name,
+            "task_version": task_map.get(r.task_id).version,
         } for r in records if r.status == TaskRecordStatus.RUNNING]
+    finally:
+        session.close()
+
+
+@app.get("/tasks/scripts")
+def get_task_script():
+    args = request.args
+    task_id = args["id"]
+    task_version = args["version"]
+
+    session = Session()
+    try:
+        script = session.query(TaskScript) \
+            .filter(TaskScript.task_id == task_id) \
+            .filter(TaskScript.version == task_version) \
+            .filter(TaskScript.deleted == 0) \
+            .first()
+        if script is None:
+            return None, 404
+
+        return {
+            "id": script.task_id,
+            "version": script.version,
+            "script": script.script,
+            "params": script.params,
+        }
     finally:
         session.close()
 

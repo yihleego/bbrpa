@@ -1,13 +1,63 @@
-import json
+# -*- coding=utf-8
 import logging
 import threading
-import time
+from functools import lru_cache
 from queue import Queue
+from typing import Union
 
 import requests
-from selenium.webdriver import Keys
 from selenium.webdriver.chrome.webdriver import WebDriver
-from selenium.webdriver.common.by import By
+
+
+class Script:
+    id: int
+    version: int
+    script: str
+    params: dict
+    func: str
+
+    def init(self):
+        lines = self.script.split('\n')
+        formatted = '\n\t'.join(lines)
+        self.func = f"def task_{self.id}_{self.version}(driver, params):\n\t{formatted}"
+
+    def exec(self, driver, params):
+        loc = {"driver": driver, "params": params, "result": None, "success": True}
+        exec(self.script, globals(), loc)
+        return loc["result"], loc["success"]
+
+
+class ScriptManager:
+    @lru_cache(maxsize=1024)
+    def get_script(self, id, version):
+        """
+        Get script from cache or remote, thread safe.
+        """
+        res = self.fetch_script(id, version)
+        if res is None:
+            raise NotImplementedError
+        script = Script()
+        script.id = res["id"]
+        script.version = res["version"]
+        script.script = res["script"]
+        script.params = res["params"]
+        script.init()
+        return script
+
+    def fetch_script(self, id, version) -> Union[dict, None]:
+        try:
+            with requests.get(f"http://localhost:11111/tasks/scripts?id={id}&version={version}", verify=False, timeout=10) as resp:
+                if resp.status_code == 200:
+                    return resp.json()
+                else:
+                    logging.error("Failed to get script: %s", str(resp))
+                    return None
+        except:
+            logging.exception("Failed to get script: id=%d version=%d", id, version)
+        return None
+
+
+script_manager = ScriptManager()
 
 
 class App:
@@ -43,21 +93,22 @@ class App:
         """
         Execute a task
         """
+        record_id = task["id"]
         try:
-            func = getattr(self, task["task_name"])
-            if not func:
+            script = script_manager.get_script(task["task_id"], task["task_version"])
+            if script is None:
                 raise NotImplementedError
-            result = func(task["data"])
+            result, success = script.exec(self.driver, task["params"])
             return {
-                "id": task["id"],
+                "id": record_id,
                 "result": result,
-                "success": True,
+                "success": success,
                 "message": None,
             }
         except Exception as e:
             logging.exception("Failed to execute task: %s", str(task))
             return {
-                "id": task["id"],
+                "id": record_id,
                 "result": None,
                 "success": False,
                 "message": str(e)
@@ -89,34 +140,3 @@ class App:
                     return False
         except:
             logging.exception("Failed to fetch tasks")
-
-    def get_icons(self, data):
-        """
-        For testing
-        """
-        params = json.loads(data)
-        driver = self.driver
-        keyword = params["keyword"]
-
-        # open url
-        driver.get('https://www.iconfont.cn/')
-        time.sleep(0.5)
-
-        # toggle the button
-        driver.find_element(by=By.CSS_SELECTOR, value='#J_search-box > div:nth-child(1)').click()
-        # choose the illustration
-        driver.find_element(by=By.CSS_SELECTOR, value='div[data-type=illustration]').click()
-        # input the keyword
-        driver.find_element(by=By.CSS_SELECTOR, value='input#J_search_input_index').send_keys(keyword + Keys.ENTER)
-        time.sleep(0.5)
-
-        # find all images and names
-        names = driver.find_elements(by=By.CSS_SELECTOR, value='.block-icon-list>li>.icon-name')
-        images = driver.find_elements(by=By.CSS_SELECTOR, value='.block-icon-list>li>.icon-twrap>img')
-
-        result = [{
-            "name": names[i].get_property("title"),
-            "image": images[i].get_property("src"),
-        } for i in range(len(images))]
-
-        return json.dumps(result, ensure_ascii=False)

@@ -1,5 +1,9 @@
-import os
+# -*- coding=utf-8
 import argparse
+import os
+from dataclasses import dataclass
+
+import yaml
 
 
 def get_args():
@@ -24,3 +28,23 @@ TEST = 'test'
 DEBUG = 'debug'
 # env
 ENV = get_env()
+
+
+@dataclass
+class Logging:
+    level: str
+    format: str
+    filename: str
+
+
+@dataclass
+class App:
+    size: int
+
+
+with open(os.path.join(ROOT_DIR, f"config-{ENV}.yml"), "r", encoding="utf-8") as f:
+    _config = yaml.safe_load(f)
+
+# exports
+logging = Logging(**_config.get("logging"))
+app = App(**_config.get("app"))

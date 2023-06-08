@@ -1,25 +1,26 @@
+# -*- coding=utf-8
 import logging
 import os
 import signal
 import sys
 import threading
 
+import config
 from rpa import RPA
 
 
 def init():
-    formatter = logging.Formatter('%(asctime)s %(levelname)-5s [%(process)d-%(thread)d-%(threadName)s] %(module)s#%(funcName)s : %(message)s')
+    formatter = logging.Formatter(config.logging.format)
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(config.logging.level)
     logger.addHandler(stream_handler)
-    os.makedirs(os.path.dirname('./logs/rpa-client.log'), exist_ok=True)
-    file_handler = logging.FileHandler('./logs/rpa-client.log', encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    signal.signal(signal.SIGINT, lambda *args: sys.exit())
-    signal.signal(signal.SIGTERM, lambda *args: sys.exit())
+    if config.logging.filename:
+        os.makedirs(os.path.dirname(config.logging.filename), exist_ok=True)
+        file_handler = logging.FileHandler(config.logging.filename, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
 
 def run():
